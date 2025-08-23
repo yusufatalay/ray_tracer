@@ -3,11 +3,14 @@
 
 #include "color.h"
 #include "hittable.h"
+#include "rtweekend.h"
+#include <iostream>
 
 class camera {
 public:
-  double aspect_ratio = 1.0; // image width over height
-  int image_width = 100;     // rendered image witdh in pixel color
+  double aspect_ratio = 1.0;  // image width over height
+  int image_width = 100;      // rendered image witdh in pixel color
+  int samples_per_pixel = 10; // count of random samples for each pixel
 
   void render(const hittable &world) {
     initialize();
@@ -18,28 +21,30 @@ public:
       std::clog << "\rScanlines remaining: " << (image_height - j) << ' '
                 << std::flush;
       for (int i = 0; i < image_width; i++) {
-        auto pixel_center =
-            pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
-        auto ray_direction = pixel_center - center;
-        ray r(center, ray_direction);
-
-        color pixel_color = ray_color(r, world);
-
-        write_color(std::cout, pixel_color);
+        color pixel_color(0, 0, 0);
+        for (int sample = 0; sample < samples_per_pixel; sample++) {
+          ray r = get_ray(i, j);
+          pixel_color += ray_color(r, world);
+        }
+        write_color(std::cout, pixel_samples_scale * pixel_color);
       }
     }
+
+    std::clog << "\nDone.\t\n";
   }
 
 private:
-  int image_height;
-  point3 center;
-  point3 pixel00_loc;
-  vec3 pixel_delta_u;
-  vec3 pixel_delta_v;
+  int image_height;           // rendered image height
+  double pixel_samples_scale; // color scale factor for a sum of pixel samples
+  point3 center;              // camera center
+  point3 pixel00_loc;         // location of pixel 0,0
+  vec3 pixel_delta_u;         // offset to pixel to the right
+  vec3 pixel_delta_v;         // offset to pixel below
   void initialize() {
     image_height = int(image_width / aspect_ratio);
     image_height = (image_height < 1) ? 1 : image_height;
 
+    pixel_samples_scale = 1.0 / samples_per_pixel;
     center = point3(0, 0, 0);
 
     // Determine viewport dimensions.
@@ -62,6 +67,26 @@ private:
         center - vec3(0, 0, focal_legth) - viewport_u / 2 - viewport_v / 2;
 
     pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+  }
+
+  ray get_ray(int i, int j) const {
+    // construct a camera ray originating from the origin and directed at
+    // randomly samples point around the pixel location i, j.
+
+    auto offset = sample_square();
+    auto pixel_sample = pixel00_loc + ((i + offset.x()) * pixel_delta_u) +
+                        ((j + offset.y()) * pixel_delta_v);
+
+    auto ray_origin = center;
+    auto ray_direction = pixel_sample - ray_origin;
+
+    return ray(ray_origin, ray_direction);
+  }
+
+  vec3 sample_square() const {
+    // Returns the vector to a random point in the [-.5, -.5]-[+.5, +.5] unit
+    // square
+    return vec3(random_double() - 0.5, random_double() - 0.5, 0);
   }
 
   color ray_color(const ray &r, const hittable &world) const {
