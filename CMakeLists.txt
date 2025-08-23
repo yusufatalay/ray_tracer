@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(ray_tracer main.cc)
 
 add_custom_target(
-  clean_all
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_clean.cmake
+  clear  
+  COMMAND rm ray_tracer image.ppm
 )
 
 add_custom_target(
